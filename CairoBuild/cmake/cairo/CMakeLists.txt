@@ -182,10 +182,13 @@ target_link_libraries(cairo gdi32 msimg32 user32 ZLIB::ZLIB PNG::PNG freetype ${
 #${FONTCONFIG_LIBRARY}
 )
 
+set_target_properties(cairo PROPERTIES PUBLIC_HEADER "src/cairo.h;src/cairo-deprecated.h;src/cairo-features.h;src/cairo-pdf.h;src/cairo-ps.h;src/cairo-script.h;src/cairo-svg.h;/cairo-version.h;src/cairo-win32.h;/util/cairo-gobject/cairo-gobject.h;src/cairo-ft.h")
+
 install(TARGETS cairo
   RUNTIME DESTINATION bin
   LIBRARY DESTINATION bin
   ARCHIVE DESTINATION lib
+  PUBLIC_HEADER DESTINATION include
 )
 
 # GObject support module

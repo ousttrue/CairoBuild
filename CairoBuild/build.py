@@ -215,11 +215,11 @@ class Lib:
 
 
 LIBS = [
-    # Lib('https://zlib.net/zlib-1.2.11.tar.gz'),
-    # Lib('https://downloads.sourceforge.net/libpng/libpng-1.6.35.tar.xz'),
-    # Lib('https://download.savannah.gnu.org/releases/freetype/freetype-2.8.1.tar.bz2'),
-    # Lib('https://download-mirror.savannah.gnu.org/releases/freetype/freetype-2.8.1.tar.bz2'),
-    #Lib('https://www.cairographics.org/releases/pixman-0.34.0.tar.gz', None, HERE / 'cmake' / 'pixman'),
+    Lib('https://zlib.net/zlib-1.2.11.tar.gz'),
+    Lib('https://downloads.sourceforge.net/libpng/libpng-1.6.35.tar.xz'),
+    #Lib('https://download.savannah.gnu.org/releases/freetype/freetype-2.8.1.tar.bz2'),
+    Lib('https://download-mirror.savannah.gnu.org/releases/freetype/freetype-2.8.1.tar.bz2'),
+    Lib('https://www.cairographics.org/releases/pixman-0.34.0.tar.gz', None, HERE / 'cmake' / 'pixman'),
     Lib('http://cairographics.org/snapshots/cairo-1.15.14.tar.xz',
         None, HERE / 'cmake' / 'cairo'),
 ]
