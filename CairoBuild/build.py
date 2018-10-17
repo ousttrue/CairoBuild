@@ -1,13 +1,5 @@
 '''
 # Cairo build script
-
-## licenses
-* zlib: https://www.zlib.net/zlib_license.html
-* libpng: src/libpng-1.6.35/LICENSE"
-* freetype: https://www.freetype.org/license.html
-* pixman
-* cairo: https://cairographics.org/ LGPL or MPL
-
 '''
 import pathlib
 import os
