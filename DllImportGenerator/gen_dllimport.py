@@ -8,7 +8,7 @@ from clang import cindex
 HERE = pathlib.Path(__file__).absolute().parent
 
 CAIRO_H = HERE / "../CairoBuild/install/include/cairo.h"
-CS_PATH = HERE / "../UnityProject/Assets/UnityCairo/CairoDllImport.cs"
+CS_PATH = HERE / "../UnityProject/Assets/UnityCairo/Scripts/CairoDllImport.cs"
 
 
 class Function:
@@ -427,9 +427,6 @@ namespace UnityCairo
         ''.join(csharp_function(f, parser.types) for f in parser.functions),
         ''.join(csharp_method(f, parser.types) for f in parser.functions)
     )
-
-    if not CS_PATH.parent.is_dir():
-        CS_PATH.parent.mkdir()
 
     with open(CS_PATH, 'w', encoding='utf-8') as io:
         io.write(source)
