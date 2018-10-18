@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Xml.Linq;
 
 
@@ -42,11 +43,27 @@ namespace UnityCairo
                     switch (splited[0].Trim())
                     {
                         case "stroke":
-                            style.Stroke = Rgb.Parse(splited[1].Trim());
+                            {
+                                if (splited[1].Trim().StartsWith("none"))
+                                {
+
+                                }
+                                else
+                                {
+                                    style.Stroke = Rgb.Parse(splited[1].Trim());
+                                }
+                            }
                             break;
 
                         case "fill":
-                            style.Fill = Rgb.Parse(splited[1].Trim());
+                            if (splited[1].Trim().StartsWith("none"))
+                            {
+
+                            }
+                            else
+                            {
+                                style.Fill = Rgb.Parse(splited[1].Trim());
+                            }
                             break;
                     }
                 }
@@ -70,7 +87,7 @@ namespace UnityCairo
                     }
                 }
                 else if (Fill.HasValue)
-                { 
+                {
                     var rgb = Fill.Value;
                     cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
                     cr.fill();
@@ -93,7 +110,7 @@ namespace UnityCairo
             public static Rotate Parse(string src)
             {
                 var splited = src.Split();
-                var r= new Rotate
+                var r = new Rotate
                 { };
 
                 r.degree = double.Parse(splited[0]);
@@ -117,7 +134,7 @@ namespace UnityCairo
 
                 if (src.StartsWith("rotate(") && src.EndsWith(")"))
                 {
-                    t.rotate = Rotate.Parse(src.Substring(7, src.Length-8));
+                    t.rotate = Rotate.Parse(src.Substring(7, src.Length - 8));
                 }
 
                 return t;
@@ -240,6 +257,224 @@ namespace UnityCairo
 #endif
         }
 
+        public class ParsePosition
+        {
+            public string Src { get; private set; }
+
+            int m_pos;
+
+            public char Value
+            {
+                get
+                {
+                    return Src[m_pos];
+                }
+            }
+
+            public bool IsEnd
+            {
+                get
+                {
+                    return m_pos >= Src.Length;
+                }
+            }
+
+            public ParsePosition(string src)
+            {
+                Src = src;
+            }
+
+            public void Skip(char c)
+            {
+                if (Src[m_pos] != c) throw new Exception();
+                ++m_pos;
+            }
+
+            public void SkipSpace()
+            {
+                while (char.IsWhiteSpace(Src[m_pos]))
+                {
+                    ++m_pos;
+                }
+            }
+
+            public void SkipComma()
+            {
+                if (Src[m_pos] != ',') throw new Exception("not comma");
+                ++m_pos;
+            }
+
+            public double ParseDouble()
+            {
+                var start = m_pos;
+                while (m_pos < Src.Length && (char.IsDigit(Src[m_pos]) || Src[m_pos] == '.'))
+                {
+                    ++m_pos;
+                }
+                return double.Parse(Src.Substring(start, m_pos - start));
+            }
+
+            public override string ToString()
+            {
+                return Src.Substring(m_pos);
+            }
+        }
+
+        interface ICommand
+        {
+            void Apply(Cairo cr);
+        }
+
+        public class MoveCommand: ICommand
+        {
+            double tx;
+            double ty;
+
+            // M50, 50
+            public static MoveCommand Parse(ParsePosition current)
+            {
+                current.Skip('M');
+
+                var x = current.ParseDouble();
+
+                current.SkipComma();
+                current.SkipSpace();
+
+                var y = current.ParseDouble();
+
+                return new MoveCommand
+                {
+                    tx = x,
+                    ty = y
+                };
+            }
+
+            public void Apply(Cairo cr)
+            {
+                cr.move_to(tx, ty);
+            }
+        }
+
+        public class ArcCommand : ICommand
+        {
+            double tx;
+            double ty;
+
+            // A30,30 0 0,0 70,70
+            public static ArcCommand Parse(ParsePosition current)
+            {
+                current.Skip('A');
+
+                var rx = current.ParseDouble();
+                current.SkipComma();
+                var ry = current.ParseDouble();
+
+                current.SkipSpace();
+                var rot = current.ParseDouble();
+
+                current.SkipSpace();
+                var large = current.ParseDouble();
+                current.SkipComma();
+                var sweep = current.ParseDouble();
+
+                current.SkipSpace();
+                var tx = current.ParseDouble();
+                current.SkipComma();
+                var ty = current.ParseDouble();
+
+                return new ArcCommand
+                {
+                    tx = tx,
+                    ty = ty,
+                };
+            }
+
+            public void Apply(Cairo cr)
+            {
+                cr.move_to(tx, ty);
+            }
+        }
+
+        class LineCommand : ICommand
+        {
+            double tx;
+            double ty;
+
+            public static LineCommand Parse(ParsePosition current)
+            {
+                current.Skip('L');
+
+                var tx = current.ParseDouble();
+                current.SkipComma();
+                var ty = current.ParseDouble();
+
+                return new LineCommand
+                {
+                    tx = tx,
+                    ty = ty,
+                };
+            }
+
+            public void Apply(Cairo cr)
+            {
+                cr.line_to(tx, ty);
+            }
+        }
+
+        class Path
+        {
+            List<ICommand> m_commands = new List<ICommand>();
+
+            public static Path Parse(string src)
+            {
+                var path = new Path();
+
+                var current = new ParsePosition(src);
+                while(!current.IsEnd)
+                {
+                    current.SkipSpace();
+
+                    switch (current.Value)
+                    {
+                        case 'M':
+                            path.m_commands.Add(MoveCommand.Parse(current));
+                            break;
+
+                        case 'A':
+                            path.m_commands.Add(ArcCommand.Parse(current));
+                            break;
+
+                        case 'L':
+                            path.m_commands.Add(LineCommand.Parse(current));
+                            break;
+
+                        default:
+                            throw new NotImplementedException(string.Format("unknown: {0}", current));
+                    }                   
+                }
+
+                return path;
+            }
+
+            public void Draw(Cairo cr)
+            {
+                foreach(var command in m_commands)
+                {
+                    command.Apply(cr);
+                }
+            }
+        }
+
+
+        static void DrawPath(Cairo cr, XElement e)
+        {
+            var d = e.Attribute("d");
+            var path = Path.Parse(d.Value);
+            var style = Style.Parse(e.Attribute("style").Value);
+            path.Draw(cr);
+            style.Apply(cr);
+        }
+
         public static void Draw(Cairo cr, XElement e)
         {
             switch (e.Name.LocalName)
@@ -275,6 +510,10 @@ namespace UnityCairo
 
                 case "text":
                     DrawText(cr, e);
+                    break;
+
+                case "path":
+                    DrawPath(cr, e);
                     break;
 
                 default:
