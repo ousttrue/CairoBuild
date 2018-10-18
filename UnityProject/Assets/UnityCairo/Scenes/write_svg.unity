@@ -142,7 +142,7 @@ MonoBehaviour:
     #006600\"/>\r\n\r\n      <text x=\"10\" y=\"90\" style=\"stroke: #660000; fill:
     #660000\">\r\n        Text grouped with shapes</text>\r\n    </g>\r\n\r\n</svg>"
   m_url: https://upload.wikimedia.org/wikipedia/commons/f/fd/Ghostscript_Tiger.svg
-  m_useUrl: 0
+  m_useUrl: 1
   m_width: 512
   m_height: 512
   m_shader: {fileID: 10750, guid: 0000000000000000f000000000000000, type: 0}
@@ -154,7 +154,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 319082019}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.28238982, y: -0.0970171, z: 1.3311518}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}

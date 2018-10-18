@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Collections;
+using System.IO;
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using UnityCairo;
 using UnityEngine;
@@ -77,7 +80,11 @@ public class WriteSvg : MonoBehaviour
                 cr.translate(0, m_height);
                 cr.scale(1, -1);
 
-                var document = XDocument.Parse(m_svg);
+                var settings = new XmlReaderSettings();
+                settings.ProhibitDtd = false;
+                var reader = XmlReader.Create(new MemoryStream(Encoding.UTF8.GetBytes(m_svg)), settings);
+
+                var document = XDocument.Load(reader);
                 foreach (var x in document.Root.Elements())
                 {
                     SvgWriter.Draw(cr, x);

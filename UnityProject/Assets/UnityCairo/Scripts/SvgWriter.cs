@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml.Linq;
 
 
@@ -7,36 +8,96 @@ namespace UnityCairo
 {
     static class SvgWriter
     {
-        struct Rgb
+        public struct Rgb
         {
             public double r;
             public double g;
             public double b;
 
+            public Rgb(double _r, double _g, double _b)
+            {
+                r = _r;
+                g = _g;
+                b = _b;
+            }
+
             public static Rgb Parse(string rgb)
             {
                 if (rgb[0] != '#') throw new Exception();
-                if (rgb.Length != 7) throw new Exception();
-                return new Rgb
+                if (rgb.Length == 7)
                 {
-                    r = Convert.ToByte(rgb.Substring(1, 2), 16) / 255.0,
-                    g = Convert.ToByte(rgb.Substring(3, 2), 16) / 255.0,
-                    b = Convert.ToByte(rgb.Substring(5, 2), 16) / 255.0,
-                };
+                    return new Rgb
+                    {
+                        r = Convert.ToByte(rgb.Substring(1, 2), 16) / 255.0,
+                        g = Convert.ToByte(rgb.Substring(3, 2), 16) / 255.0,
+                        b = Convert.ToByte(rgb.Substring(5, 2), 16) / 255.0,
+                    };
+                }
+                else if(rgb.Length == 4)
+                {
+                    return new Rgb
+                    {
+                        r = Convert.ToByte(rgb.Substring(1, 1), 16) / 15.0,
+                        g = Convert.ToByte(rgb.Substring(2, 1), 16) / 15.0,
+                        b = Convert.ToByte(rgb.Substring(3, 1), 16) / 15.0,
+                    };
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
             }
         }
 
-        struct Style
+        public struct Style
         {
             public Rgb? Stroke;
             public Rgb? Fill;
+            public double? StrokeWidth;
 
-            public static Style Parse(string src)
+            public void ParseFill(string src)
             {
-                var style = new Style
+                if (src == "transparent")
                 {
-                };
+                    Fill = null;
+                }
+                else if(src == "none")
+                {
+                    Fill = null;
+                }
+                else if (src.StartsWith("#"))
+                {
+                    Fill = Rgb.Parse(src);
+                }
+                else
+                {
+                    throw new NotImplementedException(src);
+                }
+            }
 
+            public void ParseStroke(string src)
+            {
+                if (src == "black")
+                {
+                    Stroke = new Rgb(0, 0, 0);
+                }
+                else if (src.StartsWith("#"))
+                {
+                    Stroke = Rgb.Parse(src);
+                }
+                else
+                {
+                    throw new NotImplementedException(src);
+                }
+            }
+
+            public void ParseStrokeWidth(string src)
+            {
+                StrokeWidth = double.Parse(src);
+            }
+
+            public void ParseStyle(string src)
+            {
                 foreach (var token in src.Split(';'))
                 {
                     var splited = token.Split(':');
@@ -44,13 +105,14 @@ namespace UnityCairo
                     {
                         case "stroke":
                             {
-                                if (splited[1].Trim().StartsWith("none"))
+                                var value = splited[1].Trim();
+                                if (value == "none")
                                 {
-
+                                    Stroke = null;
                                 }
                                 else
                                 {
-                                    style.Stroke = Rgb.Parse(splited[1].Trim());
+                                    Stroke = Rgb.Parse(value);
                                 }
                             }
                             break;
@@ -58,21 +120,51 @@ namespace UnityCairo
                         case "fill":
                             if (splited[1].Trim().StartsWith("none"))
                             {
-
+                                Fill = null;
                             }
                             else
                             {
-                                style.Fill = Rgb.Parse(splited[1].Trim());
+                                Fill = Rgb.Parse(splited[1].Trim());
                             }
                             break;
                     }
                 }
+            }
 
-                return style;
+            public void Parse(XElement e)
+            {
+                {
+                    var attr = e.Attribute("style");
+                    if (attr != null)
+                    {
+                        ParseStyle(attr.Value);
+                    }
+                }
+
+                {
+                    var attr = e.Attribute("stroke");
+                    if (attr != null)
+                    {
+                        ParseStroke(attr.Value);
+                    }
+                }
+
+                {
+                    var attr = e.Attribute("fill");
+                    if (attr != null)
+                    {
+                        ParseFill(attr.Value);
+                    }
+                }
             }
 
             public void Apply(Cairo cr)
             {
+                if (StrokeWidth.HasValue)
+                {
+                    cr.set_line_width(StrokeWidth.Value);
+                }
+
                 if (Fill.HasValue && Stroke.HasValue)
                 {
                     {
@@ -158,7 +250,7 @@ namespace UnityCairo
             public double y;
             public Transform? transform;
 
-            public static Group Parse(XElement x)
+            public static Group Parse(XElement x, Context context)
             {
                 var g = new Group
                 {
@@ -179,6 +271,25 @@ namespace UnityCairo
 
                         case "transform":
                             g.transform = Transform.Parse(a.Value);
+                            break;
+
+                        case "stroke":
+                            context.Style.ParseStroke(a.Value);
+                            break;
+
+                        case "stroke-width":
+                            context.Style.ParseStrokeWidth(a.Value);
+                            break;
+
+                        case "stroke-linejoin":
+                        case "stroke-linecap":
+                            break;
+
+                        case "fill":
+                            context.Style.ParseFill(a.Value);
+                            break;
+
+                        case "id":
                             break;
 
                         default:
@@ -202,44 +313,43 @@ namespace UnityCairo
             }
         }
 
-        static void DrawLine(Cairo cr, XElement e)
+        static void DrawLine(Cairo cr, XElement e, Context context)
         {
             var x1 = double.Parse(e.Attribute("x1").Value);
             var y1 = double.Parse(e.Attribute("y1").Value);
             var x2 = double.Parse(e.Attribute("x2").Value);
             var y2 = double.Parse(e.Attribute("y2").Value);
-            var style = Style.Parse(e.Attribute("style").Value);
             cr.move_to(x1, y1);
             cr.line_to(x2, y2);
-            style.Apply(cr);
+            context.Style.Parse(e);
+            context.Style.Apply(cr);
         }
 
-        static void DrawRect(Cairo cr, XElement e)
+        static void DrawRect(Cairo cr, XElement e, Context context)
         {
             var x = double.Parse(e.Attribute("x").Value);
             var y = double.Parse(e.Attribute("y").Value);
             var w = double.Parse(e.Attribute("width").Value);
             var h = double.Parse(e.Attribute("height").Value);
-            var style = Style.Parse(e.Attribute("style").Value);
             cr.rectangle(x, y, w, h);
-            style.Apply(cr);
+            context.Style.Parse(e);
+            context.Style.Apply(cr);
         }
 
-        static void DrawCircle(Cairo cr, XElement e)
+        static void DrawCircle(Cairo cr, XElement e, Context context)
         {
             var cx = double.Parse(e.Attribute("cx").Value);
             var cy = double.Parse(e.Attribute("cy").Value);
             var r = double.Parse(e.Attribute("r").Value);
-            var style = Style.Parse(e.Attribute("style").Value);
             cr.arc(cx, cy, r, 0, Math.PI * 2);
-            style.Apply(cr);
+            context.Style.Parse(e);
+            context.Style.Apply(cr);
         }
 
-        static void DrawText(Cairo cr, XElement e)
+        static void DrawText(Cairo cr, XElement e, Context context)
         {
             var x = double.Parse(e.Attribute("x").Value);
             var y = double.Parse(e.Attribute("y").Value);
-            var style = Style.Parse(e.Attribute("style").Value);
 
             cr.select_font_face("Sans",
                 cairo_font_slant_t.CAIRO_FONT_SLANT_NORMAL,
@@ -247,7 +357,8 @@ namespace UnityCairo
             cr.set_font_size(24);
 
 #if true
-            style.Apply(cr);
+            context.Style.Parse(e);
+            //context.Style.Apply(cr);
             cr.move_to(x, y);
             cr.show_text(e.Value.Trim());
 #else
@@ -292,26 +403,92 @@ namespace UnityCairo
 
             public void SkipSpace()
             {
-                while (char.IsWhiteSpace(Src[m_pos]))
+                for (; m_pos < Src.Length; ++m_pos)
                 {
-                    ++m_pos;
+                    if (!char.IsWhiteSpace(Src[m_pos]))
+                    {
+                        break;
+                    }
                 }
             }
 
+            /*
             public void SkipComma()
             {
                 if (Src[m_pos] != ',') throw new Exception("not comma");
                 ++m_pos;
             }
+            */
+
+            void SkipNonNumber()
+            {
+                for(; m_pos<Src.Length; ++m_pos)
+                {
+                    switch(Src[m_pos])
+                    {
+                        case ' ':
+                        case ',':
+                        case 'z':
+                            break;
+
+                        case '-':
+                        case '0':
+                        case '1':
+                        case '2':
+                        case '3':
+                        case '4':
+                        case '5':
+                        case '6':
+                        case '7':
+                        case '8':
+                        case '9':
+                            return;
+
+                        default:
+                            throw new NotImplementedException(string.Format("SkipNonNumber: {0}", Src.Substring(m_pos)));
+                    }
+                }
+            }
 
             public double ParseDouble()
             {
+                SkipNonNumber();
+
                 var start = m_pos;
-                while (m_pos < Src.Length && (char.IsDigit(Src[m_pos]) || Src[m_pos] == '.'))
+                for (; m_pos < Src.Length; ++m_pos)
                 {
-                    ++m_pos;
+                    if (m_pos == start && Src[m_pos]=='-')
+                    {
+                        // ok
+                    }
+                    else if(char.IsDigit(Src[m_pos]) || Src[m_pos] == '.')
+                    {
+                        // ok
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
-                return double.Parse(Src.Substring(start, m_pos - start));
+                var substr = Src.Substring(start, m_pos - start);
+                return double.Parse(substr);
+            }
+
+            public List<double> ParseDoubles()
+            {
+                List<double> values = new List<double>();
+                try
+                {
+                    while (!IsEnd)
+                    {
+                        values.Add(ParseDouble());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    //UnityEngine.Debug.LogWarningFormat("{0}", ex);
+                }
+                return values;
             }
 
             public override string ToString()
@@ -320,13 +497,14 @@ namespace UnityCairo
             }
         }
 
-        interface ICommand
+        public interface ICommand
         {
             void Apply(Cairo cr);
         }
 
         public class MoveCommand: ICommand
         {
+            bool isRelative;
             double tx;
             double ty;
 
@@ -334,29 +512,53 @@ namespace UnityCairo
             public static MoveCommand Parse(ParsePosition current)
             {
                 current.Skip('M');
-
-                var x = current.ParseDouble();
-
-                current.SkipComma();
-                current.SkipSpace();
-
-                var y = current.ParseDouble();
-
                 return new MoveCommand
                 {
-                    tx = x,
-                    ty = y
+                    tx = current.ParseDouble(),
+                    ty = current.ParseDouble()
                 };
             }
 
+            public static IEnumerable<ICommand> ParseRelative(ParsePosition current)
+            {
+                current.Skip('m');
+
+                var values = current.ParseDoubles();
+                if (values.Count % 2 != 0) throw new Exception();
+
+                var it = values.GetEnumerator();
+                while (it.MoveNext())
+                {
+                    var tx = it.Current;
+                    it.MoveNext();
+                    var ty = it.Current;
+
+                    yield return new MoveCommand
+                    {
+                        isRelative = true,
+                        tx = tx,
+                        ty = ty
+                    };
+                }
+            }           
+
             public void Apply(Cairo cr)
             {
-                cr.move_to(tx, ty);
+                if (isRelative)
+                {
+                    cr.rel_move_to(tx, ty);
+                }
+                else
+                {
+                    cr.move_to(tx, ty);
+                }
             }
         }
 
         public class ArcCommand : ICommand
         {
+            double rx;
+            double ry;
             double tx;
             double ty;
 
@@ -366,24 +568,16 @@ namespace UnityCairo
                 current.Skip('A');
 
                 var rx = current.ParseDouble();
-                current.SkipComma();
                 var ry = current.ParseDouble();
-
-                current.SkipSpace();
                 var rot = current.ParseDouble();
-
-                current.SkipSpace();
                 var large = current.ParseDouble();
-                current.SkipComma();
                 var sweep = current.ParseDouble();
-
-                current.SkipSpace();
                 var tx = current.ParseDouble();
-                current.SkipComma();
                 var ty = current.ParseDouble();
-
                 return new ArcCommand
                 {
+                    rx = rx,
+                    ry = ry,
                     tx = tx,
                     ty = ty,
                 };
@@ -391,35 +585,290 @@ namespace UnityCairo
 
             public void Apply(Cairo cr)
             {
+                if (rx == ry)
+                {
+                    double x = 0;
+                    double y = 0;
+                    cr.get_current_point(ref x, ref y);
+
+                    cr.arc(
+                        x + (tx - x) / 2, 
+                        y + (ty - y) / 2, 
+                        rx, 
+                        0, 
+                        UnityEngine.Mathf.PI);
+                }
+                else
+                {
+                    // ellipse. not implemented
+                }
                 cr.move_to(tx, ty);
             }
         }
 
         class LineCommand : ICommand
         {
+            bool isRelative;
             double tx;
             double ty;
 
-            public static LineCommand Parse(ParsePosition current)
+            public static IEnumerable<ICommand> Parse(ParsePosition current)
             {
-                current.Skip('L');
+                var value = current.Value;
+                current.Skip(value);
 
-                var tx = current.ParseDouble();
-                current.SkipComma();
-                var ty = current.ParseDouble();
+                var values = current.ParseDoubles();
 
-                return new LineCommand
+                if (value == 'h')
                 {
-                    tx = tx,
-                    ty = ty,
-                };
+                    if (values.Count != 1)
+                    {
+                        throw new Exception();
+                    }
+                    yield return new LineCommand
+                    {
+                        tx = values[0],
+                        ty = 0
+                    };
+                    yield break;
+                }
+
+                if (value == 'v'){
+                    if (values.Count != 1)
+                    {
+                        throw new Exception();
+                    }
+                    yield return new LineCommand
+                    {
+                        tx = 0,
+                        ty = values[0]
+                    };
+                    yield break;
+                }
+
+                if (values.Count % 2 != 0) throw new Exception("2");
+
+                var it = values.GetEnumerator();
+                while (it.MoveNext())
+                {
+                    var tx = it.Current;
+                    it.MoveNext();
+                    var ty = it.Current;
+
+                    switch (value)
+                    {
+                        case 'L':
+                            yield return new LineCommand
+                            {
+                                tx = tx,
+                                ty = ty,
+                            };
+                            break;
+
+                        case 'l':
+                            yield return new LineCommand
+                            {
+                                isRelative = true,
+                                tx = tx,
+                                ty = ty,
+                            };
+                            break;
+
+                        default:
+                            throw new NotImplementedException();
+                    }
+                }
             }
 
             public void Apply(Cairo cr)
             {
-                cr.line_to(tx, ty);
+                if (isRelative)
+                {
+                    cr.rel_line_to(tx, ty);
+                }
+                else
+                {
+                    cr.line_to(tx, ty);
+                }
             }
         }
+
+        class CurveCommand : ICommand
+        {
+            bool isRelative;
+            double x1, y1;
+            double x2, y2;
+            double x, y;
+
+            public double SmoothX1
+            {
+                get
+                {
+                    if (isRelative)
+                    {
+                        return -x;
+                    }
+                    else
+                    {
+                        throw new NotImplementedException();
+                    }
+                }
+            }
+
+            public double SmoothY1
+            {
+                get
+                {
+                    if (isRelative)
+                    {
+                        return -y;
+                    }
+                    else
+                    {
+                        throw new NotImplementedException();
+                    }
+                }
+            }
+
+            public static IEnumerable<ICommand> Parse(ParsePosition current, bool isRelative)
+            {
+                current.Skip(isRelative
+                    ? 'c'
+                    : 'C'
+                    );
+
+                List<double> values = new List<double>();
+                try
+                {
+                    while (!current.IsEnd)
+                    {
+                        values.Add(current.ParseDouble());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogWarningFormat("{0}", ex);
+                }
+                if (values.Count % 6 != 0) throw new Exception("6");
+
+                var it = values.GetEnumerator();
+                while (it.MoveNext())
+                {
+                    var x1 = it.Current;
+                    it.MoveNext();
+                    var y1 = it.Current;
+                    it.MoveNext();
+                    var x2 = it.Current;
+                    it.MoveNext();
+                    var y2 = it.Current;
+                    it.MoveNext();
+                    var x = it.Current;
+                    it.MoveNext();
+                    var y = it.Current;
+
+                    yield return new CurveCommand
+                    {
+                        isRelative = isRelative,
+                        x1 = x1,
+                        y1 = y1,
+                        x2 = x2,
+                        y2 = y2,
+                        x = x,
+                        y = y,
+                    };
+                }
+            }
+
+            public static IEnumerable<ICommand> ParseSmoothRelative(ParsePosition current, CurveCommand last)
+            {
+                current.Skip('s');
+
+                List<double> values = new List<double>();
+                try
+                {
+                    while (!current.IsEnd)
+                    {
+                        values.Add(current.ParseDouble());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    //UnityEngine.Debug.LogFormat("{0}", current);
+                }
+                if (values.Count % 4 != 0)
+                {
+                    throw new Exception("4");
+                }
+
+
+                var it = values.GetEnumerator();
+                while (it.MoveNext())
+                {
+                    var x2 = it.Current;
+                    it.MoveNext();
+                    var y2 = it.Current;
+                    it.MoveNext();
+                    var x = it.Current;
+                    it.MoveNext();
+                    var y = it.Current;
+
+                    double x1=0;
+                    double y1=0;
+                    if (last == null)
+                    {
+
+                    }
+                    else if (last.isRelative)
+                    {
+                        x1 = last.SmoothX1;
+                        y1 = last.SmoothY1;
+                    }
+                    else
+                    {
+                        throw new NotImplementedException();
+                    }
+
+                    last = new CurveCommand
+                    {
+                        isRelative = true,
+                        x1 = x1,
+                        y1 = y1,
+                        x2 = x2,
+                        y2 = y2,
+                        x = x,
+                        y = y,
+                    };
+                    yield return last;
+                }
+            }
+
+            public void Apply(Cairo cr)
+            {
+                if (isRelative)
+                {
+                    cr.rel_curve_to(x1, y1, x2, y2, x, y);
+                }
+                else
+                {
+                    cr.curve_to(x1, y1, x2, y2, x, y);
+                }
+            }
+        }
+
+        class CloseCommand : ICommand
+        {
+            public static CloseCommand Parse(ParsePosition current)
+            {
+                current.Skip('z');
+                return new CloseCommand();
+            }
+
+            public void Apply(Cairo cr)
+            {
+                cr.close_path();
+            }
+        }
+
 
         class Path
         {
@@ -430,14 +879,17 @@ namespace UnityCairo
                 var path = new Path();
 
                 var current = new ParsePosition(src);
-                while(!current.IsEnd)
+                while (!current.IsEnd)
                 {
                     current.SkipSpace();
-
                     switch (current.Value)
                     {
                         case 'M':
                             path.m_commands.Add(MoveCommand.Parse(current));
+                            break;
+
+                        case 'm':
+                            path.m_commands.AddRange(MoveCommand.ParseRelative(current));
                             break;
 
                         case 'A':
@@ -445,12 +897,35 @@ namespace UnityCairo
                             break;
 
                         case 'L':
-                            path.m_commands.Add(LineCommand.Parse(current));
+                        case 'l':
+                        case 'v':
+                        case 'h':
+                            path.m_commands.AddRange(LineCommand.Parse(current));
+                            break;
+
+                        case 'Q':
+                            //path.m_commands.Add(QuadraticBezierCurve.Parse(current));
+                            break;
+
+                        case 'C':
+                            path.m_commands.AddRange(CurveCommand.Parse(current, false));
+                            break;
+
+                        case 'c':
+                            path.m_commands.AddRange(CurveCommand.Parse(current, true));
+                            break;
+
+                        case 's':
+                            path.m_commands.AddRange(CurveCommand.ParseSmoothRelative(current, path.m_commands.Last() as CurveCommand));
+                            break;
+
+                        case 'z':
+                            path.m_commands.Add(CloseCommand.Parse(current));
                             break;
 
                         default:
                             throw new NotImplementedException(string.Format("unknown: {0}", current));
-                    }                   
+                    }
                 }
 
                 return path;
@@ -465,18 +940,31 @@ namespace UnityCairo
             }
         }
 
-
-        static void DrawPath(Cairo cr, XElement e)
+        static void DrawPath(Cairo cr, XElement e, Context context)
         {
             var d = e.Attribute("d");
+
             var path = Path.Parse(d.Value);
-            var style = Style.Parse(e.Attribute("style").Value);
             path.Draw(cr);
-            style.Apply(cr);
+
+            context.Style.Parse(e);
+            context.Style.Apply(cr);
         }
 
-        public static void Draw(Cairo cr, XElement e)
+        public class Context
         {
+            public Style Style;
+            public double X;
+            public double Y;
+        }
+
+        public static void Draw(Cairo cr, XElement e, Context context = null)
+        {
+            if (context == null)
+            {
+                context = new Context();
+            }
+
             switch (e.Name.LocalName)
             {
                 case "g":
@@ -484,12 +972,12 @@ namespace UnityCairo
                     {
                         cr.save();
                         {
-                            var g = Group.Parse(e);
+                            var g = Group.Parse(e, context);
                             g.Apply(cr);
 
                             foreach (var child in e.Elements())
                             {
-                                Draw(cr, child);
+                                Draw(cr, child, context);
                             }
                         }
                         cr.restore();
@@ -497,23 +985,23 @@ namespace UnityCairo
                     break;
 
                 case "line":
-                    DrawLine(cr, e);
+                    DrawLine(cr, e, context);
                     break;
 
                 case "rect":
-                    DrawRect(cr, e);
+                    DrawRect(cr, e, context);
                     break;
 
                 case "circle":
-                    DrawCircle(cr, e);
+                    DrawCircle(cr, e, context);
                     break;
 
                 case "text":
-                    DrawText(cr, e);
+                    DrawText(cr, e, context);
                     break;
 
                 case "path":
-                    DrawPath(cr, e);
+                    DrawPath(cr, e, context);
                     break;
 
                 default:
