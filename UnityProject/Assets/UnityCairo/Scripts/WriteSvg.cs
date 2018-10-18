@@ -76,7 +76,7 @@ public class WriteSvg : MonoBehaviour
                 var document = XDocument.Parse(m_svg);
                 foreach (var x in document.Root.Elements())
                 {
-                    SvgWriter.Draw(x, cairo);
+                    SvgWriter.Draw(cairo, x);
                 }
             }
 

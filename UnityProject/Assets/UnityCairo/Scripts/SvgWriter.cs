@@ -53,9 +53,32 @@ namespace UnityCairo
 
                 return style;
             }
+
+            public void Apply(Cairo cr)
+            {
+                if (Fill.HasValue)
+                {
+                    var rgb = Fill.Value;
+                    cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
+                    if (Stroke.HasValue)
+                    {
+                        cr.fill_preserve();
+                    }
+                    else
+                    {
+                        cr.fill();
+                    }
+                }
+                if (Stroke.HasValue)
+                {
+                    var rgb = Stroke.Value;
+                    cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
+                    cr.stroke();
+                }
+            }
         }
 
-        static void DrawRect(XElement e, Cairo cr)
+        static void DrawRect(Cairo cr, XElement e)
         {
             var x = double.Parse(e.Attribute("x").Value);
             var y = double.Parse(e.Attribute("y").Value);
@@ -63,33 +86,29 @@ namespace UnityCairo
             var h = double.Parse(e.Attribute("height").Value);
             var style = Style.Parse(e.Attribute("style").Value);
             cr.rectangle(x, y, w, h);
-            if (style.Fill.HasValue)
-            {
-                var rgb = style.Fill.Value;
-                cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
-                if (style.Stroke.HasValue)
-                {
-                    cr.fill_preserve();
-                }
-                else
-                {
-                    cr.fill();
-                }
-            }
-            if (style.Stroke.HasValue)
-            {
-                var rgb = style.Stroke.Value;
-                cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
-                cr.stroke();
-            }
+            style.Apply(cr);
         }
 
-        public static void Draw(XElement e, Cairo cr)
+        static void DrawCircle(Cairo cr, XElement e)
+        {
+            var cx = double.Parse(e.Attribute("cx").Value);
+            var cy = double.Parse(e.Attribute("cy").Value);
+            var r = double.Parse(e.Attribute("r").Value);
+            var style = Style.Parse(e.Attribute("style").Value);
+            cr.arc(cx, cy, r, 0, Math.PI * 2);
+            style.Apply(cr);
+        }
+
+        public static void Draw(Cairo cr, XElement e)
         {
             switch (e.Name.LocalName)
             {
                 case "rect":
-                    DrawRect(e, cr);
+                    DrawRect(cr, e);
+                    break;
+
+                case "circle":
+                    DrawCircle(cr, e);
                     break;
 
                 default:
