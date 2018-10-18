@@ -84,10 +84,62 @@ namespace UnityCairo
             }
         }
 
+        struct Rotate
+        {
+            public double degree;
+            public double x;
+            public double y;
+
+            public static Rotate Parse(string src)
+            {
+                var splited = src.Split();
+                var r= new Rotate
+                { };
+
+                r.degree = double.Parse(splited[0]);
+                r.x = double.Parse(splited[1]);
+                r.y = double.Parse(splited[2]);
+
+                return r;
+            }
+        }
+
+        struct Transform
+        {
+            public Rotate? rotate;
+
+            public static Transform Parse(String src)
+            {
+                var t = new Transform
+                {
+
+                };
+
+                if (src.StartsWith("rotate(") && src.EndsWith(")"))
+                {
+                    t.rotate = Rotate.Parse(src.Substring(7, src.Length-8));
+                }
+
+                return t;
+            }
+
+            public void Apply(Cairo cr)
+            {
+                if (rotate.HasValue)
+                {
+                    var r = rotate.Value;
+                    cr.translate(r.x, r.y);
+                    cr.rotate(UnityEngine.Mathf.Deg2Rad * r.degree);
+                    cr.translate(-r.x, -r.y);
+                }
+            }
+        }
+
         struct Group
         {
             public double x;
             public double y;
+            public Transform? transform;
 
             public static Group Parse(XElement x)
             {
@@ -108,6 +160,10 @@ namespace UnityCairo
                             g.y = double.Parse(a.Value);
                             break;
 
+                        case "transform":
+                            g.transform = Transform.Parse(a.Value);
+                            break;
+
                         default:
                             throw new NotImplementedException(a.Name.LocalName);
                     }
@@ -115,6 +171,17 @@ namespace UnityCairo
                 }
 
                 return g;
+            }
+
+            public void Apply(Cairo cr)
+            {
+                cr.translate(x, y);
+
+                if (transform.HasValue)
+                {
+                    var t = transform.Value;
+                    t.Apply(cr);
+                }
             }
         }
 
@@ -183,7 +250,7 @@ namespace UnityCairo
                         cr.save();
                         {
                             var g = Group.Parse(e);
-                            cr.translate(g.x, g.y);
+                            g.Apply(cr);
 
                             foreach (var child in e.Elements())
                             {
