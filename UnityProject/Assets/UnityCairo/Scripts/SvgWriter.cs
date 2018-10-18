@@ -78,6 +78,41 @@ namespace UnityCairo
             }
         }
 
+        struct Group
+        {
+            public double x;
+            public double y;
+
+            public static Group Parse(XElement x)
+            {
+                var g = new Group
+                {
+
+                };
+
+                foreach (var a in x.Attributes())
+                {
+                    switch (a.Name.LocalName)
+                    {
+                        case "x":
+                            g.x = double.Parse(a.Value);
+                            break;
+
+                        case "y":
+                            g.y = double.Parse(a.Value);
+                            break;
+
+                        default:
+                            throw new NotImplementedException(a.Name.LocalName);
+                    }
+
+                }
+
+                return g;
+            }
+        }
+
+
         static void DrawRect(Cairo cr, XElement e)
         {
             var x = double.Parse(e.Attribute("x").Value);
@@ -103,6 +138,22 @@ namespace UnityCairo
         {
             switch (e.Name.LocalName)
             {
+                case "svg":
+                    {
+                        cr.save();
+                        {
+                            var g = Group.Parse(e);
+                            cr.translate(g.x, g.y);
+
+                            foreach (var child in e.Elements())
+                            {
+                                Draw(cr, child);
+                            }
+                        }
+                        cr.restore();
+                    }
+                    break;
+
                 case "rect":
                     DrawRect(cr, e);
                     break;
