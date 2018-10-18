@@ -56,20 +56,26 @@ namespace UnityCairo
 
             public void Apply(Cairo cr)
             {
-                if (Fill.HasValue)
+                if (Fill.HasValue && Stroke.HasValue)
                 {
-                    var rgb = Fill.Value;
-                    cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
-                    if (Stroke.HasValue)
                     {
+                        var rgb = Fill.Value;
+                        cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
                         cr.fill_preserve();
                     }
-                    else
                     {
-                        cr.fill();
+                        var rgb = Stroke.Value;
+                        cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
+                        cr.stroke();
                     }
                 }
-                if (Stroke.HasValue)
+                else if (Fill.HasValue)
+                { 
+                    var rgb = Fill.Value;
+                    cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
+                    cr.fill();
+                }
+                else if (Stroke.HasValue)
                 {
                     var rgb = Stroke.Value;
                     cr.set_source_rgb(rgb.r, rgb.g, rgb.b);
@@ -112,6 +118,17 @@ namespace UnityCairo
             }
         }
 
+        static void DrawLine(Cairo cr, XElement e)
+        {
+            var x1 = double.Parse(e.Attribute("x1").Value);
+            var y1 = double.Parse(e.Attribute("y1").Value);
+            var x2 = double.Parse(e.Attribute("x2").Value);
+            var y2 = double.Parse(e.Attribute("y2").Value);
+            var style = Style.Parse(e.Attribute("style").Value);
+            cr.move_to(x1, y1);
+            cr.line_to(x2, y2);
+            style.Apply(cr);
+        }
 
         static void DrawRect(Cairo cr, XElement e)
         {
@@ -134,10 +151,33 @@ namespace UnityCairo
             style.Apply(cr);
         }
 
+        static void DrawText(Cairo cr, XElement e)
+        {
+            var x = double.Parse(e.Attribute("x").Value);
+            var y = double.Parse(e.Attribute("y").Value);
+            var style = Style.Parse(e.Attribute("style").Value);
+
+            cr.select_font_face("Sans",
+                cairo_font_slant_t.CAIRO_FONT_SLANT_NORMAL,
+                cairo_font_weight_t.CAIRO_FONT_WEIGHT_NORMAL);
+            cr.set_font_size(24);
+
+#if true
+            style.Apply(cr);
+            cr.move_to(x, y);
+            cr.show_text(e.Value.Trim());
+#else
+            cr.move_to(x, y);
+            cr.text_path(e.Value.Trim()); // use cairo_glyph_path ?
+            style.Apply(cr);
+#endif
+        }
+
         public static void Draw(Cairo cr, XElement e)
         {
             switch (e.Name.LocalName)
             {
+                case "g":
                 case "svg":
                     {
                         cr.save();
@@ -154,6 +194,10 @@ namespace UnityCairo
                     }
                     break;
 
+                case "line":
+                    DrawLine(cr, e);
+                    break;
+
                 case "rect":
                     DrawRect(cr, e);
                     break;
@@ -162,8 +206,12 @@ namespace UnityCairo
                     DrawCircle(cr, e);
                     break;
 
+                case "text":
+                    DrawText(cr, e);
+                    break;
+
                 default:
-                    throw new NotImplementedException(e.ToString());
+                    throw new NotImplementedException(e.Name.LocalName);
             }
         }
     }

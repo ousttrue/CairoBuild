@@ -71,12 +71,16 @@ public class WriteSvg : MonoBehaviour
         using (var surface = Surface.CreateFromBytes(data, m_width, m_height, m_width * 4))
         {
             //using (var surface = Surface.Create(120, 120))
-            using (var cairo = Cairo.Create(surface))
+            using (var cr = Cairo.Create(surface))
             {
+                // flip vertical
+                cr.translate(0, m_height);
+                cr.scale(1, -1);
+
                 var document = XDocument.Parse(m_svg);
                 foreach (var x in document.Root.Elements())
                 {
-                    SvgWriter.Draw(cairo, x);
+                    SvgWriter.Draw(cr, x);
                 }
             }
 

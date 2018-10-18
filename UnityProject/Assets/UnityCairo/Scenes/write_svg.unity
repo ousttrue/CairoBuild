@@ -135,9 +135,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cbccb6f1823bc02478f31feb279e7eca, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_svg: "<svg  xmlns=\"http://www.w3.org/2000/svg\"\r\n      xmlns:xlink=\"http://www.w3.org/1999/xlink\">\r\n
-    \   <rect x = \"10\" y=\"10\" height=\"100\" width=\"100\"\r\n          style=\"stroke:#ff0000;
-    fill: #0000ff\"/>\r\n</svg>\r\n"
+  m_svg: "<svg xmlns=\"http://www.w3.org/2000/svg\"\r\n    xmlns:xlink=\"http://www.w3.org/1999/xlink\">\r\n\r\n
+    \   <g transform=\"rotate(45 50 50)\">\r\n      <line x1=\"10\" y1=\"10\" x2=\"85\"
+    y2=\"10\"\r\n          style=\"stroke: #006600;\"/>\r\n\r\n      <rect x=\"10\"
+    y=\"20\" height=\"50\" width=\"75\"\r\n          style=\"stroke: #006600; fill:
+    #006600\"/>\r\n\r\n      <text x=\"10\" y=\"90\" style=\"stroke: #660000; fill:
+    #660000\">\r\n        Text grouped with shapes</text>\r\n    </g>\r\n\r\n</svg>"
   m_url: https://upload.wikimedia.org/wikipedia/commons/f/fd/Ghostscript_Tiger.svg
   m_useUrl: 0
   m_width: 512
